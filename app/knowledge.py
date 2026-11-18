@@ -9,13 +9,13 @@ from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 
-from app import store
-
-
 SUPPORTED_EXTENSIONS = {".pdf", ".docx", ".md", ".markdown", ".txt"}
 CHUNK_SIZE = int(os.getenv("CHUNK_SIZE", "800"))
 CHUNK_OVERLAP = int(os.getenv("CHUNK_OVERLAP", "120"))
 RETRIEVAL_K = int(os.getenv("RETRIEVAL_K", "5"))
+RETRIEVAL_STRATEGY = os.getenv("RETRIEVAL_STRATEGY", "similarity").lower()
+RETRIEVAL_FETCH_K = int(os.getenv("RETRIEVAL_FETCH_K", "20"))
+MMR_LAMBDA = float(os.getenv("MMR_LAMBDA", "0.65"))
 
 
 def configured_embeddings() -> Embeddings:
@@ -23,7 +23,9 @@ def configured_embeddings() -> Embeddings:
     if provider == "openai":
         from langchain_openai import OpenAIEmbeddings
 
-        kwargs: dict[str, Any] = {"model": os.getenv("OPENAI_EMBEDDING_MODEL", "text-embedding-3-small")}
+        kwargs: dict[str, Any] = {
+            "model": os.getenv("OPENAI_EMBEDDING_MODEL", "text-embedding-3-small")
+        }
         if os.getenv("OPENAI_BASE_URL"):
             kwargs["base_url"] = os.environ["OPENAI_BASE_URL"]
         return OpenAIEmbeddings(**kwargs)
@@ -98,7 +100,9 @@ def load_documents(path: Path, kb_id: str, document_id: str, filename: str) -> l
         from docx import Document as WordDocument
 
         document = WordDocument(str(path))
-        text = "\n".join(paragraph.text for paragraph in document.paragraphs if paragraph.text.strip())
+        text = "\n".join(
+            paragraph.text for paragraph in document.paragraphs if paragraph.text.strip()
+        )
     else:
         text = path.read_text(encoding="utf-8-sig")
     if not text.strip():
@@ -128,18 +132,61 @@ def ingest_file(kb_id: str, document_id: str, filename: str, path: Path) -> int:
     return len(chunks)
 
 
-def answer_question(kb_id: str, question: str) -> tuple[str, list[dict[str, Any]]]:
-    retrieved = vector_store(kb_id).similarity_search_with_score(question, k=RETRIEVAL_K)
+def _cosine_similarity(left: list[float], right: list[float]) -> float:
+    dot_product = sum(a * b for a, b in zip(left, right, strict=True))
+    left_norm = sum(value * value for value in left) ** 0.5
+    right_norm = sum(value * value for value in right) ** 0.5
+    if not left_norm or not right_norm:
+        return 0.0
+    return dot_product / (left_norm * right_norm)
+
+
+def retrieve_documents(
+    kb_id: str, question: str, strategy: str | None = None
+) -> list[tuple[Document, float]]:
+    selected_strategy = (strategy or RETRIEVAL_STRATEGY).lower()
+    if selected_strategy not in {"similarity", "mmr"}:
+        raise ValueError("Retrieval strategy must be 'similarity' or 'mmr'.")
+    if not 0 <= MMR_LAMBDA <= 1:
+        raise ValueError("MMR_LAMBDA must be between 0 and 1.")
+
+    if selected_strategy == "similarity":
+        results = vector_store(kb_id).similarity_search_with_score(question, k=RETRIEVAL_K)
+        return [
+            (document, 1.0 / (1.0 + max(float(distance), 0.0))) for document, distance in results
+        ]
+
+    embeddings = configured_embeddings()
+    documents = vector_store(kb_id, embeddings).max_marginal_relevance_search(
+        question,
+        k=RETRIEVAL_K,
+        fetch_k=max(RETRIEVAL_K, RETRIEVAL_FETCH_K),
+        lambda_mult=MMR_LAMBDA,
+    )
+    if not documents:
+        return []
+    query_vector = embeddings.embed_query(question)
+    document_vectors = embeddings.embed_documents([document.page_content for document in documents])
+    return [
+        (document, max(0.0, min(1.0, (_cosine_similarity(query_vector, vector) + 1) / 2)))
+        for document, vector in zip(documents, document_vectors, strict=True)
+    ]
+
+
+def answer_question(
+    kb_id: str, question: str, strategy: str | None = None
+) -> tuple[str, list[dict[str, Any]]]:
+    retrieved = retrieve_documents(kb_id, question, strategy)
     sources: list[dict[str, Any]] = []
     context_parts: list[str] = []
-    for index, (document, distance) in enumerate(retrieved, start=1):
-        score = max(0.0, min(1.0, 1.0 - float(distance) / 2.0))
+    for index, (document, score) in enumerate(retrieved, start=1):
         source = {
             "index": index,
             "filename": document.metadata.get("source", "Unknown"),
             "page": document.metadata.get("page"),
             "chunk": document.page_content[:1200],
             "score": round(score, 4),
+            "retrieval_strategy": (strategy or RETRIEVAL_STRATEGY).lower(),
         }
         sources.append(source)
         context_parts.append(f"[{index}] {document.page_content}")

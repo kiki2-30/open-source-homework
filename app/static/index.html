@@ -10,18 +10,32 @@
   <body>
     <div class="app-shell">
       <aside class="sidebar">
-        <div class="brand"><div class="brand-mark">知</div><div><strong>知问</strong><small>AI 知识库工作台</small></div></div>
+        <div class="brand">
+          <div class="brand-mark">知</div>
+          <div><strong>知问</strong><small>AI 知识库工作台</small></div>
+        </div>
         <div class="side-section">
-          <div class="section-heading"><span>知识库</span><button id="new-kb" class="icon-button" title="新建知识库">＋</button></div>
+          <div class="section-heading">
+            <span>知识库</span
+            ><button id="new-kb" class="icon-button" title="新建知识库">＋</button>
+          </div>
           <div id="kb-list" class="kb-list"></div>
         </div>
-        <div class="side-footer"><span class="status-dot"></span><span id="provider-status">正在连接</span></div>
+        <div class="side-footer">
+          <span class="status-dot"></span><span id="provider-status">正在连接</span>
+        </div>
       </aside>
 
       <main class="main">
         <header class="topbar">
-          <div class="breadcrumb"><span>工作空间</span><span class="slash">/</span><strong id="active-kb-name">选择一个知识库</strong></div>
-          <div class="top-actions"><div id="kb-count" class="top-meta">智能检索 · 来源可溯</div><button id="delete-kb" class="delete-kb hidden">删除知识库</button></div>
+          <div class="breadcrumb">
+            <span>工作空间</span><span class="slash">/</span
+            ><strong id="active-kb-name">选择一个知识库</strong>
+          </div>
+          <div class="top-actions">
+            <div id="kb-count" class="top-meta">智能检索 · 来源可溯</div>
+            <button id="delete-kb" class="delete-kb hidden">删除知识库</button>
+          </div>
         </header>
         <div id="empty-state" class="empty-state">
           <div class="hero-icon">知</div>
@@ -33,7 +47,9 @@
         <section id="workspace" class="workspace hidden">
           <nav class="tabs">
             <button class="tab active" data-tab="chat">智能问答</button>
-            <button class="tab" data-tab="documents">资料管理 <span id="document-count" class="pill">0</span></button>
+            <button class="tab" data-tab="documents">
+              资料管理 <span id="document-count" class="pill">0</span>
+            </button>
             <button class="tab" data-tab="pipeline">处理流水线</button>
             <button class="tab" data-tab="evaluation">问答评测</button>
           </nav>
@@ -52,30 +68,121 @@
                 </div>
               </div>
               <form id="ask-form" class="composer">
-                <textarea id="question" rows="1" placeholder="输入问题，按 Enter 发送…" maxlength="4000"></textarea>
-                <div class="composer-bottom"><span>回答仅基于当前知识库内容</span><button id="ask-button" class="send-button" type="submit" aria-label="发送">↑</button></div>
+                <textarea
+                  id="question"
+                  rows="1"
+                  placeholder="输入问题，按 Enter 发送…"
+                  maxlength="4000"
+                ></textarea>
+                <div class="composer-bottom">
+                  <span>回答仅基于当前知识库内容</span>
+                  <div class="composer-actions">
+                    <select id="chat-strategy" aria-label="检索策略">
+                      <option value="similarity">相似度检索</option>
+                      <option value="mmr">MMR 多样性检索</option></select
+                    ><button id="ask-button" class="send-button" type="submit" aria-label="发送">
+                      ↑
+                    </button>
+                  </div>
+                </div>
               </form>
             </div>
           </section>
 
           <section id="documents-panel" class="panel hidden">
-            <div class="panel-heading"><div><h2>资料管理</h2><p>支持 PDF、Word、Markdown 和 TXT · 单文件最大 25 MB</p></div><label class="button primary upload-button">上传资料<input id="file-input" type="file" multiple accept=".pdf,.docx,.md,.markdown,.txt" /></label></div>
-            <div class="table-wrap"><table><thead><tr><th>文件名</th><th>状态</th><th>文本块</th><th>上传时间</th><th></th></tr></thead><tbody id="documents-table"></tbody></table></div>
+            <div class="panel-heading">
+              <div>
+                <h2>资料管理</h2>
+                <p>支持 PDF、Word、Markdown 和 TXT · 单文件最大 25 MB</p>
+              </div>
+              <label class="button primary upload-button"
+                >上传资料<input
+                  id="file-input"
+                  type="file"
+                  multiple
+                  accept=".pdf,.docx,.md,.markdown,.txt"
+              /></label>
+            </div>
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>文件名</th>
+                    <th>状态</th>
+                    <th>文本块</th>
+                    <th>上传时间</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody id="documents-table"></tbody>
+              </table>
+            </div>
           </section>
 
           <section id="pipeline-panel" class="panel hidden">
-            <div class="panel-heading"><div><h2>处理流水线</h2><p>查看上传、解析、切分、向量索引和检索生成的执行记录。</p></div><button id="refresh-pipeline" class="button">刷新</button></div>
+            <div class="panel-heading">
+              <div>
+                <h2>处理流水线</h2>
+                <p>查看上传、解析、切分、向量索引和检索生成的执行记录。</p>
+              </div>
+              <button id="refresh-pipeline" class="button">刷新</button>
+            </div>
             <div id="pipeline-list" class="pipeline-list"></div>
           </section>
 
           <section id="evaluation-panel" class="panel hidden">
-            <div class="panel-heading"><div><h2>问答评测</h2><p>输入测试问题和期望答案，检查回答命中率与引用数量。</p></div></div>
+            <div class="panel-heading">
+              <div>
+                <h2>问答评测</h2>
+                <p>输入测试问题和期望答案，检查回答命中率与引用数量。</p>
+              </div>
+            </div>
             <div class="eval-form">
-              <label>测试问题<textarea id="eval-question" rows="3" placeholder="例如：产品的退款期限是多久？"></textarea></label>
-              <label>期望答案<textarea id="eval-expected" rows="3" placeholder="输入答案中应包含的关键短语"></textarea></label>
+              <label
+                >测试问题<textarea
+                  id="eval-question"
+                  rows="3"
+                  placeholder="例如：产品的退款期限是多久？"
+                ></textarea>
+              </label>
+              <label
+                >期望答案<textarea
+                  id="eval-expected"
+                  rows="3"
+                  placeholder="输入答案中应包含的关键短语"
+                ></textarea>
+              </label>
               <button id="run-evaluation" class="button primary">运行评测</button>
             </div>
-            <div id="evaluation-result"></div>
+            <div id="evaluation-result">
+              <div id="single-evaluation-summary"></div>
+              <div id="single-evaluation-answer"></div>
+            </div>
+            <div class="batch-eval">
+              <div class="batch-heading">
+                <div>
+                  <h3>批量评测集</h3>
+                  <p>上传 JSON / JSONL，单次最多 25 题；可填写期望来源文件名计算检索指标。</p>
+                </div>
+                <label class="button batch-upload"
+                  >导入 JSON / JSONL<input id="dataset-file" type="file" accept=".json,.jsonl"
+                /></label>
+              </div>
+              <label class="dataset-label"
+                >评测数据集（JSON 数组或 JSONL）
+                <textarea id="dataset-input" rows="9" spellcheck="false"></textarea>
+              </label>
+              <div class="batch-controls">
+                <label
+                  >检索策略<select id="batch-strategy">
+                    <option value="similarity">相似度检索</option>
+                    <option value="mmr">MMR 多样性检索</option>
+                  </select></label
+                ><button id="run-batch-evaluation" class="button primary">运行批量评测</button>
+              </div>
+              <div id="batch-result"></div>
+              <div id="evaluation-history" class="evaluation-history"></div>
+            </div>
           </section>
         </section>
       </main>
@@ -83,10 +190,28 @@
     <div id="toast" class="toast hidden"></div>
     <dialog id="kb-dialog">
       <form id="kb-form" method="dialog">
-        <div class="dialog-heading"><div><h2>新建知识库</h2><p>为一组相关资料创建独立的问答空间。</p></div><button class="icon-button" value="cancel" aria-label="关闭">×</button></div>
-        <label>知识库名称<input id="kb-name" required maxlength="80" placeholder="例如：产品使用手册" /></label>
-        <label>描述（选填）<textarea id="kb-description" maxlength="500" rows="3" placeholder="简要说明知识库的内容"></textarea></label>
-        <div class="dialog-actions"><button class="button" value="cancel">取消</button><button id="create-kb-submit" class="button primary" value="default">创建</button></div>
+        <div class="dialog-heading">
+          <div>
+            <h2>新建知识库</h2>
+            <p>为一组相关资料创建独立的问答空间。</p>
+          </div>
+          <button class="icon-button" value="cancel" aria-label="关闭">×</button>
+        </div>
+        <label
+          >知识库名称<input id="kb-name" required maxlength="80" placeholder="例如：产品使用手册"
+        /></label>
+        <label
+          >描述（选填）<textarea
+            id="kb-description"
+            maxlength="500"
+            rows="3"
+            placeholder="简要说明知识库的内容"
+          ></textarea>
+        </label>
+        <div class="dialog-actions">
+          <button class="button" value="cancel">取消</button
+          ><button id="create-kb-submit" class="button primary" value="default">创建</button>
+        </div>
       </form>
     </dialog>
     <script src="/static/app.js"></script>

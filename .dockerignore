@@ -1,0 +1,15 @@
+.git
+.venv
+__pycache__
+.pytest_cache
+.ruff_cache
+node_modules
+.env
+data/*
+!data/.gitkeep
+tests
+README.md
+requirements-dev.txt
+package.json
+package-lock.json
+pyproject.toml

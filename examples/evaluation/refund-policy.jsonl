@@ -1,0 +1,5 @@
+{"question":"普通商品的无理由退货期限是多久？","expected_answer":"7 个自然日","expected_sources":["refund-policy.md"]}
+{"question":"商品有质量问题，最晚多久可以申请售后？","expected_answer":"30 个自然日","expected_sources":["refund-policy.md"]}
+{"question":"质量问题申请需要提供什么材料？","expected_answer":"订单号及清晰的问题照片或视频","expected_sources":["refund-policy.md"]}
+{"question":"质量问题确认后，退货运费由谁承担？","expected_answer":"平台承担","expected_sources":["refund-policy.md"]}
+{"question":"退货验收后多久发起退款？","expected_answer":"3 至 5 个工作日","expected_sources":["refund-policy.md"]}

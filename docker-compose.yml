@@ -1,0 +1,32 @@
+services:
+  app:
+    build: .
+    env_file:
+      - .env
+    environment:
+      DATA_DIR: /app/data
+      OLLAMA_BASE_URL: http://ollama:11434
+    ports:
+      - "8000:8000"
+    volumes:
+      - knowledge-data:/app/data
+    depends_on:
+      ollama:
+        condition: service_healthy
+    restart: unless-stopped
+
+  ollama:
+    image: ollama/ollama:latest
+    volumes:
+      - ollama-models:/root/.ollama
+    healthcheck:
+      test: ["CMD", "ollama", "list"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+    restart: unless-stopped
+
+volumes:
+  knowledge-data:
+  ollama-models:

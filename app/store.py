@@ -7,7 +7,6 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Iterator
 
-
 DATA_DIR = Path(os.getenv("DATA_DIR", "./data")).resolve()
 DB_PATH = DATA_DIR / "knowledge.db"
 
@@ -61,6 +60,24 @@ def initialize() -> None:
                 question TEXT NOT NULL, expected TEXT NOT NULL, answer TEXT NOT NULL,
                 hit INTEGER NOT NULL, citation_count INTEGER NOT NULL, created_at TEXT NOT NULL
             );
+            CREATE TABLE IF NOT EXISTS evaluation_runs (
+                id TEXT PRIMARY KEY, kb_id TEXT NOT NULL REFERENCES knowledge_bases(id) ON DELETE CASCADE,
+                dataset_name TEXT NOT NULL, status TEXT NOT NULL, metrics TEXT NOT NULL,
+                created_at TEXT NOT NULL
+            );
+            CREATE TABLE IF NOT EXISTS evaluation_cases (
+                id TEXT PRIMARY KEY, run_id TEXT NOT NULL REFERENCES evaluation_runs(id) ON DELETE CASCADE,
+                position INTEGER NOT NULL, question TEXT NOT NULL, expected_answer TEXT NOT NULL,
+                expected_sources TEXT NOT NULL, answer TEXT NOT NULL, retrieved_sources TEXT NOT NULL,
+                answer_hit INTEGER, source_hit INTEGER, source_precision REAL, source_recall REAL,
+                reciprocal_rank REAL,
+                latency_ms REAL, status TEXT NOT NULL, error TEXT,
+                created_at TEXT NOT NULL, UNIQUE(run_id, position)
+            );
+            CREATE INDEX IF NOT EXISTS idx_evaluation_runs_kb_created
+                ON evaluation_runs(kb_id, created_at DESC);
+            CREATE INDEX IF NOT EXISTS idx_evaluation_cases_run_position
+                ON evaluation_cases(run_id, position);
             """
         )
 
