@@ -1,11 +1,11 @@
 import uuid
 from typing import Any
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Response
 from pydantic import BaseModel, ConfigDict, Field
 
 from app import store
-from app.api.common import require_knowledge_base
+from app.api.common import Limit, Offset, pagination_headers, require_knowledge_base
 from app.knowledge import answer_question
 
 router = APIRouter(tags=["operations"])
@@ -20,15 +20,32 @@ class EvaluationInput(BaseModel):
 
 
 @router.get("/api/knowledge-bases/{kb_id}/pipeline")
-def pipeline_runs(kb_id: str) -> list[dict[str, Any]]:
+def pipeline_runs(
+    kb_id: str,
+    response: Response,
+    status: str | None = None,
+    limit: Limit = 100,
+    offset: Offset = 0,
+) -> list[dict[str, Any]]:
+    clauses = ["kb_id = ?"]
+    params: list[Any] = [kb_id]
+    if status:
+        if status not in {"completed", "failed", "skipped"}:
+            raise HTTPException(400, "status must be completed, failed or skipped.")
+        clauses.append("status = ?")
+        params.append(status)
+    where = " AND ".join(clauses)
     with store.connect() as db:
         require_knowledge_base(db, kb_id)
-        return store.rows_as_dicts(
-            db.execute(
-                "SELECT * FROM pipeline_runs WHERE kb_id = ? ORDER BY created_at DESC LIMIT 100",
-                (kb_id,),
-            ).fetchall()
+        total = store.scalar(db, f"SELECT COUNT(*) FROM pipeline_runs WHERE {where}", params) or 0
+        items = store.fetch_all(
+            db,
+            f"""SELECT * FROM pipeline_runs WHERE {where}
+                ORDER BY created_at DESC, rowid DESC LIMIT ? OFFSET ?""",
+            (*params, limit, offset),
         )
+    response.headers.update(pagination_headers(int(total), limit, offset))
+    return items
 
 
 @router.post("/api/evaluate", status_code=201)

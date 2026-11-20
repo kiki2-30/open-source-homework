@@ -160,6 +160,9 @@ button {
 .status-dot.online {
   background: #42b983;
 }
+.status-dot.degraded {
+  background: #d25555;
+}
 .top-actions {
   display: flex;
   align-items: center;
@@ -393,6 +396,17 @@ button {
 .assistant .message-bubble {
   padding: 3px 0;
 }
+.assistant .message-bubble.streaming::after {
+  content: '▍';
+  margin-left: 2px;
+  color: var(--accent);
+  animation: blink 1s steps(2, start) infinite;
+}
+@keyframes blink {
+  to {
+    opacity: 0;
+  }
+}
 .message-role {
   font-size: 10px;
   color: #969ca7;
@@ -568,6 +582,15 @@ button {
 }
 .delete-button:hover {
   color: #d25555;
+}
+.delete-button:disabled {
+  opacity: 0.45;
+  cursor: wait;
+}
+.doc-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
 }
 .pipeline-list {
   padding: 0 35px 35px;

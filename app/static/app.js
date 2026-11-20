@@ -124,11 +124,38 @@ async function loadDocuments() {
   }
   for (const doc of documents) {
     const row = document.createElement('tr');
-    const status = doc.status === 'ready' ? '已完成' : doc.status === 'failed' ? '失败' : '处理中';
-    row.innerHTML = `<td class="filename"></td><td><span class="status ${doc.status}">${status}</span></td><td>${doc.chunk_count}</td><td>${new Date(doc.created_at).toLocaleString()}</td><td><button class="delete-button" title="移除文档">移除</button></td>`;
+    const statusLabel =
+      doc.status === 'ready' ? '已完成' : doc.status === 'failed' ? '失败' : '处理中';
+    row.innerHTML = `<td class="filename"></td><td><span class="status ${doc.status}">${statusLabel}</span></td><td>${doc.chunk_count}</td><td>${new Date(doc.created_at).toLocaleString()}</td><td class="doc-actions"></td>`;
     row.querySelector('.filename').textContent =
       doc.filename + (doc.error ? ` · ${doc.error}` : '');
-    row.querySelector('.delete-button').addEventListener('click', async () => {
+    const actions = row.querySelector('.doc-actions');
+    if (doc.status === 'failed') {
+      const reindex = document.createElement('button');
+      reindex.className = 'delete-button';
+      reindex.textContent = '重新索引';
+      reindex.title = '使用原始上传文件重新解析并建立索引';
+      reindex.addEventListener('click', async () => {
+        reindex.disabled = true;
+        try {
+          await api(`/api/knowledge-bases/${state.kbId}/documents/${doc.id}/reindex`, {
+            method: 'POST',
+          });
+          await Promise.all([loadDocuments(), loadKnowledgeBases()]);
+          toast('文档已重新索引');
+        } catch (error) {
+          toast(error.message, true);
+        } finally {
+          reindex.disabled = false;
+        }
+      });
+      actions.append(reindex);
+    }
+    const remove = document.createElement('button');
+    remove.className = 'delete-button';
+    remove.textContent = '移除';
+    remove.title = '移除文档';
+    remove.addEventListener('click', async () => {
       if (!confirm(`确定移除“${doc.filename}”及其索引？`)) return;
       try {
         await api(`/api/knowledge-bases/${state.kbId}/documents/${doc.id}`, { method: 'DELETE' });
@@ -138,6 +165,7 @@ async function loadDocuments() {
         toast(error.message, true);
       }
     });
+    actions.append(remove);
     body.append(row);
   }
 }
@@ -160,7 +188,12 @@ async function uploadFiles(files) {
   }
 }
 
-function appendMessage(role, text, sources = []) {
+function scrollMessages() {
+  const messages = $('#messages');
+  messages.scrollTop = messages.scrollHeight;
+}
+
+function createMessage(role, text = '') {
   const messages = $('#messages');
   messages.querySelector('.welcome')?.remove();
   const article = document.createElement('article');
@@ -172,27 +205,83 @@ function appendMessage(role, text, sources = []) {
   bubble.className = 'message-bubble';
   bubble.textContent = text;
   article.append(roleLabel, bubble);
-  if (sources.length) {
-    const sourceList = document.createElement('div');
-    sourceList.className = 'sources';
-    const title = document.createElement('div');
-    title.className = 'sources-title';
-    title.textContent = `参考来源 · ${sources.length}`;
-    sourceList.append(title);
-    for (const source of sources) {
-      const card = document.createElement('div');
-      card.className = 'source-card';
-      const label = document.createElement('strong');
-      label.textContent = `[${source.index}] ${source.filename}${source.page ? ` · 第 ${source.page} 页` : ''} · 检索分数 ${Number(source.score).toFixed(3)}`;
-      const excerpt = document.createElement('p');
-      excerpt.textContent = source.chunk;
-      card.append(label, excerpt);
-      sourceList.append(card);
-    }
-    article.append(sourceList);
-  }
   messages.append(article);
-  messages.scrollTop = messages.scrollHeight;
+  scrollMessages();
+  return article;
+}
+
+function renderSources(article, sources) {
+  article.querySelector('.sources')?.remove();
+  if (!sources.length) return;
+  const sourceList = document.createElement('div');
+  sourceList.className = 'sources';
+  const title = document.createElement('div');
+  title.className = 'sources-title';
+  title.textContent = `参考来源 · ${sources.length}`;
+  sourceList.append(title);
+  for (const source of sources) {
+    const card = document.createElement('div');
+    card.className = 'source-card';
+    const label = document.createElement('strong');
+    label.textContent = `[${source.index}] ${source.filename}${source.page ? ` · 第 ${source.page} 页` : ''} · 检索分数 ${Number(source.score).toFixed(3)}`;
+    const excerpt = document.createElement('p');
+    excerpt.textContent = source.chunk;
+    card.append(label, excerpt);
+    sourceList.append(card);
+  }
+  article.append(sourceList);
+  scrollMessages();
+}
+
+function appendMessage(role, text, sources = []) {
+  const article = createMessage(role, text);
+  renderSources(article, sources);
+  return article;
+}
+
+function parseSseEvent(raw) {
+  let event = 'message';
+  const data = [];
+  for (const line of raw.split('\n')) {
+    if (line.startsWith('event:')) event = line.slice(6).trim();
+    else if (line.startsWith('data:')) data.push(line.slice(5).trim());
+  }
+  return data.length ? { event, data: JSON.parse(data.join('\n')) } : null;
+}
+
+async function streamAnswer(question, onEvent) {
+  const response = await fetch('/api/ask/stream', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      kb_id: state.kbId,
+      question,
+      conversation_id: state.conversationId,
+      strategy: $('#chat-strategy').value,
+    }),
+  });
+  if (!response.ok || !response.body) {
+    let message = `请求失败 (${response.status})`;
+    try {
+      message = (await response.json()).detail || message;
+    } catch {}
+    throw new Error(message);
+  }
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+  for (;;) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    let separator = buffer.indexOf('\n\n');
+    while (separator !== -1) {
+      const parsed = parseSseEvent(buffer.slice(0, separator));
+      buffer = buffer.slice(separator + 2);
+      if (parsed) onEvent(parsed);
+      separator = buffer.indexOf('\n\n');
+    }
+  }
 }
 
 async function askQuestion(question) {
@@ -200,31 +289,36 @@ async function askQuestion(question) {
   appendMessage('user', question);
   $('#question').value = '';
   $('#ask-button').disabled = true;
-  const loading = document.createElement('article');
-  loading.className = 'message assistant';
-  loading.innerHTML =
-    '<div class="message-role">知问</div><div class="message-bubble">正在检索知识库并生成回答…</div>';
-  $('#messages').append(loading);
+  const article = createMessage('assistant', '正在检索知识库…');
+  const bubble = article.querySelector('.message-bubble');
+  bubble.classList.add('streaming');
+  let answer = '';
   try {
-    const result = await api('/api/ask', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        kb_id: state.kbId,
-        question,
-        conversation_id: state.conversationId,
-        strategy: $('#chat-strategy').value,
-      }),
+    await streamAnswer(question, ({ event, data }) => {
+      if (event === 'sources') {
+        state.conversationId = data.conversation_id;
+        bubble.textContent = data.sources.length
+          ? `已检索到 ${data.sources.length} 段资料，正在生成回答…`
+          : '当前知识库中没有检索到相关资料…';
+      } else if (event === 'token') {
+        answer += data.text;
+        bubble.textContent = answer;
+        scrollMessages();
+      } else if (event === 'done') {
+        state.conversationId = data.conversation_id;
+        answer = data.answer || answer;
+        bubble.textContent = answer;
+        renderSources(article, data.sources);
+      } else if (event === 'error') {
+        throw new Error(data.message);
+      }
     });
-    loading.remove();
-    state.conversationId = result.conversation_id;
-    appendMessage('assistant', result.answer, result.sources);
-    await loadConversations();
   } catch (error) {
-    loading.remove();
-    appendMessage('assistant', `本次请求失败：${error.message}`);
+    bubble.textContent = `本次请求失败：${error.message}`;
   } finally {
+    bubble.classList.remove('streaming');
     $('#ask-button').disabled = false;
+    await loadConversations().catch(() => {});
   }
 }
 
@@ -543,8 +637,10 @@ $('#dataset-input').value = JSON.stringify(
 
 api('/api/health')
   .then((health) => {
-    $('#provider-status').textContent = `${health.provider} 已连接`;
-    document.querySelector('.status-dot').classList.add('online');
+    $('#provider-status').textContent = `${health.provider} · v${health.version}`;
+    document
+      .querySelector('.status-dot')
+      .classList.add(health.status === 'ok' ? 'online' : 'degraded');
   })
   .catch(() => {
     $('#provider-status').textContent = '后端连接失败';

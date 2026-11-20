@@ -27,7 +27,7 @@ class EvaluationBatchInput(BaseModel):
     model_config = ConfigDict(str_strip_whitespace=True)
 
     dataset_name: str = Field(default="evaluation-dataset", min_length=1, max_length=100)
-    strategy: str = Field(default="similarity", pattern="^(similarity|mmr)$")
+    strategy: str = Field(default="similarity", pattern="^(similarity|mmr|hybrid)$")
     cases: list[EvaluationCaseInput] = Field(min_length=1, max_length=MAX_BATCH_CASES)
 
 

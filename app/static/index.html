@@ -79,7 +79,8 @@
                   <div class="composer-actions">
                     <select id="chat-strategy" aria-label="检索策略">
                       <option value="similarity">相似度检索</option>
-                      <option value="mmr">MMR 多样性检索</option></select
+                      <option value="mmr">MMR 多样性检索</option>
+                      <option value="hybrid">混合检索（向量 + 关键词）</option></select
                     ><button id="ask-button" class="send-button" type="submit" aria-label="发送">
                       ↑
                     </button>
@@ -177,6 +178,7 @@
                   >检索策略<select id="batch-strategy">
                     <option value="similarity">相似度检索</option>
                     <option value="mmr">MMR 多样性检索</option>
+                    <option value="hybrid">混合检索（向量 + 关键词）</option>
                   </select></label
                 ><button id="run-batch-evaluation" class="button primary">运行批量评测</button>
               </div>
